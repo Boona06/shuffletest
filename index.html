@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="mn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Хариул эсвэл Шийтгүүл</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Start Screen -->
+        <div id="start-screen" class="glass-panel">
+            <h1>Хариул эсвэл Шийтгүүл</h1>
+            <p class="subtitle">Монголын хамгийн шилдэг парти тоглоом</p>
+
+            <div class="menu-buttons">
+                <button id="create-game-menu-btn" class="btn btn-primary">Тоглоом үүсгэх</button>
+                <button id="join-game-menu-btn" class="btn btn-secondary">Тоглоомд нэгдэх</button>
+            </div>
+        </div>
+
+        <!-- Create Game Screen -->
+        <div id="create-screen" class="glass-panel hidden">
+            <h2>Тоглоом үүсгэх</h2>
+            <div class="input-group">
+                <input type="text" id="create-name-input" placeholder="Таны нэр..." autocomplete="off">
+            </div>
+            <button id="create-room-btn" class="btn btn-primary">Үүсгэх</button>
+            <button id="back-from-create-btn" class="btn btn-secondary">Буцах</button>
+        </div>
+
+        <!-- Join Screen -->
+        <div id="join-screen" class="glass-panel hidden">
+            <h2>Тоглоомд нэгдэх</h2>
+            <div class="input-group">
+                <input type="text" id="join-name-input" placeholder="Таны нэр..." autocomplete="off">
+            </div>
+            <div class="input-group">
+                <input type="text" id="room-code-input" placeholder="Өрөөний код (4 үсэг)" maxlength="4"
+                    style="text-transform: uppercase;">
+            </div>
+            <button id="join-room-btn" class="btn btn-primary">Нэгдэх</button>
+            <button id="back-to-start-btn" class="btn btn-secondary">Буцах</button>
+        </div>
+
+        <!-- Lobby Screen -->
+        <div id="lobby-screen" class="glass-panel hidden">
+            <h2>Өрөөний код</h2>
+            <div id="display-room-code" class="room-code"></div>
+
+            <div id="host-controls" class="hidden">
+                <p class="instruction">Бусад тоглогчид энэ кодоор нэгдэх боломжтой</p>
+
+                <!-- Add Player Manually -->
+                <div class="input-group" style="margin: 20px 0;">
+                    <input type="text" id="add-player-input" placeholder="Тоглогч нэмэх..." autocomplete="off">
+                    <button id="add-player-btn" class="btn btn-small">Нэмэх</button>
+                </div>
+
+                <h3>Төрөл сонгох</h3>
+                <div class="category-grid">
+                    <div class="category-card active" data-category="friends">
+                        <div class="icon">👥</div>
+                        <span>Найзууд</span>
+                    </div>
+                    <div class="category-card" data-category="couples">
+                        <div class="icon">❤️</div>
+                        <span>Хосууд</span>
+                    </div>
+                    <div class="category-card" data-category="party">
+                        <div class="icon">🔥</div>
+                        <span>Шоу/Бээр</span>
+                    </div>
+                    <div class="category-card" data-category="mix">
+                        <div class="icon">🎲</div>
+                        <span>Холимог</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="waiting-msg" class="hidden">
+                <p>Тоглогчид нэгдэхийг хүлээж байна...</p>
+            </div>
+
+            <div class="player-list-container">
+                <h3>Тоглогчид</h3>
+                <div id="lobby-player-list"></div>
+            </div>
+
+            <button id="start-game-btn" class="btn btn-primary hidden">Эхлэх</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="glass-panel game-screen">
+            <div class="current-player">
+                Ээлж: <span id="current-player-name">...</span>
+            </div>
+
+            <div id="result-card" class="result-card">
+                <div id="card-content">
+                    <p class="instruction">Баруун тийш -> ҮНЭН</p>
+                    <p class="instruction">Зүүн тийш <- ШИЙТГЭЛ</p>
+                </div>
+            </div>
+
+            <button id="back-to-menu-btn" class="btn btn-secondary">Цэс рүү буцах</button>
+        </div>
+    </div>
+
+    <!-- PeerJS -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="data.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
