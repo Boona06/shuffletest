@@ -5,8 +5,6 @@ let myName = '';
 let isHost = false;
 let currentCategory = 'friends';
 
-const net = new NetworkManager();
-
 const gameState = {
     players: [],
     currentPlayerIndex: 0,
@@ -15,6 +13,42 @@ const gameState = {
     cardColor: 'var(--neon-blue)',
     category: 'friends'
 };
+
+// DOM Elements
+const startScreen = document.getElementById('start-screen');
+const createScreen = document.getElementById('create-screen');
+const joinScreen = document.getElementById('join-screen');
+const lobbyScreen = document.getElementById('lobby-screen');
+const gameScreen = document.getElementById('game-screen');
+
+const createNameInput = document.getElementById('create-name-input');
+const joinNameInput = document.getElementById('join-name-input');
+const roomCodeInput = document.getElementById('room-code-input');
+const displayRoomCode = document.getElementById('display-room-code');
+const hostControls = document.getElementById('host-controls');
+const waitingMsg = document.getElementById('waiting-msg');
+const startGameBtn = document.getElementById('start-game-btn');
+const currentPlayerNameEl = document.getElementById('current-player-name');
+const cardContent = document.getElementById('card-content');
+const resultCard = document.getElementById('result-card');
+
+// UI Helpers
+function showScreen(screen) {
+    document.querySelectorAll('.glass-panel').forEach(s => s.classList.add('hidden'));
+    screen.classList.remove('hidden');
+}
+
+function renderLobbyPlayers() {
+    const list = document.getElementById('lobby-player-list');
+    list.innerHTML = '';
+    gameState.players.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'player-item';
+        div.textContent = p.name + (p.id === net.myId ? ' (Та)' : '');
+        list.appendChild(div);
+    });
+    document.getElementById('player-count').textContent = gameState.players.length;
+}
 
 // ==================== NetworkManager ====================
 class NetworkManager {
@@ -145,7 +179,19 @@ class NetworkManager {
     }
 }
 
+const net = new NetworkManager();
+
 // ==================== Event Listeners ====================
+document.getElementById('create-game-menu-btn').addEventListener('click', () => {
+    showScreen(createScreen);
+    createNameInput.focus();
+});
+
+document.getElementById('join-game-menu-btn').addEventListener('click', () => {
+    showScreen(joinScreen);
+    joinNameInput.focus();
+});
+
 document.getElementById('create-room-btn').addEventListener('click', () => {
     const name = createNameInput.value.trim();
     if (!name) return alert('Нэрээ оруулна уу!');
@@ -294,9 +340,22 @@ function flyOut(x) {
 
 // Touch & Mouse
 resultCard.addEventListener('mousedown', startDrag);
-resultCard.addEventListener('touchstart', startDrag);
-document.addEventListener('mousemove', drag);
-document.addEventListener('touchmove', drag);
+resultCard.addEventListener('touchstart', (e) => {
+    // Prevent default to stop scrolling/zooming while touching card
+    // But we need to be careful not to block clicking if it's a tap.
+    // Usually for swipe, we want to prevent scroll.
+    startDrag(e);
+}, { passive: false });
+
+document.addEventListener('mousemove', (e) => {
+    if (isDragging) e.preventDefault();
+    drag(e);
+});
+document.addEventListener('touchmove', (e) => {
+    if (isDragging) e.preventDefault(); // Critical for mobile swipe
+    drag(e);
+}, { passive: false });
+
 document.addEventListener('mouseup', endDrag);
 document.addEventListener('touchend', endDrag);
 
@@ -342,3 +401,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof GAME_DATA !== 'undefined') categories = GAME_DATA;
     renderLobbyPlayers();
 });
+
+// Back buttons
+document.getElementById('back-from-create-btn').onclick = () => showScreen(startScreen);
+document.getElementById('back-to-start-btn').onclick = () => showScreen(startScreen);
+document.getElementById('back-to-lobby-btn').onclick = () => location.reload();
+
+// Add offline player (host only)
+document.getElementById('add-player-btn').onclick = () => {
+    if (!isHost) return;
+    const name = document.getElementById('add-player-input').value.trim();
+    if (!name) return;
+    const fakeId = 'local-' + Date.now();
+    gameState.players.push({ id: fakeId, name });
+    renderLobbyPlayers();
+    net.broadcast({ type: 'STATE_UPDATE', state: gameState });
+    document.getElementById('add-player-input').value = '';
+};
