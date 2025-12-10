@@ -153,11 +153,11 @@ class NetworkManager {
                     break;
 
                 case 'NEXT_TURN':
-                    this.nextTurn();
+                    nextTurnReal();
                     break;
 
                 case 'CHOOSE_PUNISHMENT':
-                    this.showPunishment();
+                    showPunishment();
                     break;
             }
         } else {
