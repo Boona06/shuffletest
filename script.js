@@ -96,6 +96,20 @@ function renderLobbyPlayers() {
 }
 
 // ==================== NetworkManager ====================
+// ==================== NetworkManager ====================
+const peerConfig = {
+    config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+        ]
+    },
+    debug: 2 // Print errors/warnings
+};
+
 class NetworkManager {
     constructor() {
         this.peer = null;
@@ -109,7 +123,7 @@ class NetworkManager {
 
     initAsHost(roomCode) {
         const hostId = `TOD_MN_${roomCode}`;
-        this.peer = new Peer(hostId);
+        this.peer = new Peer(hostId, peerConfig);
 
         this.peer.on('open', (id) => {
             this.hasJoined = true;
@@ -149,7 +163,7 @@ class NetworkManager {
     }
 
     initAsClient(roomCode) {
-        this.peer = new Peer();
+        this.peer = new Peer(null, peerConfig);
 
         this.peer.on('open', (id) => {
             this.myId = id;
