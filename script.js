@@ -31,6 +31,30 @@ const startGameBtn = document.getElementById('start-game-btn');
 const currentPlayerNameEl = document.getElementById('current-player-name');
 const cardContent = document.getElementById('card-content');
 const resultCard = document.getElementById('result-card');
+const notificationArea = document.getElementById('notification-area');
+
+// Custom Modal Elements (Initialized in DOMContentLoaded)
+let modalOverlay, modalMessage, modalOkBtn;
+let modalCallback = null;
+
+function showAlert(msg, callback = null) {
+    if (!modalOverlay) return alert(msg); // Fallback if called too early
+    modalMessage.textContent = msg;
+    modalCallback = callback;
+    modalOverlay.classList.remove('hidden');
+}
+
+// Notification Helper
+function showNotification(msg) {
+    const div = document.createElement('div');
+    div.className = 'notification';
+    div.textContent = msg;
+    notificationArea.appendChild(div);
+    setTimeout(() => {
+        div.style.opacity = '0';
+        setTimeout(() => div.remove(), 300);
+    }, 3000);
+}
 
 // UI Helpers
 function showScreen(screen) {
@@ -44,7 +68,26 @@ function renderLobbyPlayers() {
     gameState.players.forEach(p => {
         const div = document.createElement('div');
         div.className = 'player-item';
-        div.textContent = p.name + (p.id === net.myId ? ' (Та)' : '');
+
+        let content = p.name + (p.id === net.myId ? ' (Та)' : '');
+
+        if (isHost && p.id !== net.myId) {
+            const btn = document.createElement('button');
+            btn.className = 'kick-btn';
+            btn.textContent = 'Хасах';
+            btn.onclick = () => net.kickPlayer(p.id);
+
+            const span = document.createElement('span');
+            span.textContent = content;
+            div.appendChild(span);
+            div.appendChild(btn);
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+        } else {
+            div.textContent = content;
+        }
+
         list.appendChild(div);
     });
     document.getElementById('player-count').textContent = gameState.players.length;
@@ -57,6 +100,9 @@ class NetworkManager {
         this.conn = null;
         this.connections = [];
         this.myId = null;
+        this.hasJoined = false;
+        this.kicked = false;
+        this.migrating = false;
     }
 
     initAsHost(roomCode) {
@@ -82,11 +128,10 @@ class NetworkManager {
 
         this.peer.on('error', err => {
             if (err.type === 'unavailable-id') {
-                alert('Энэ код аль хэдийн ашиглагдсан байна. Дахин оролдоно уу!');
-                showScreen(createScreen);
+                showAlert('Энэ код аль хэдийн ашиглагдсан байна. Дахин оролдоно уу!', () => showScreen(createScreen));
             } else {
                 console.error(err);
-                alert('Холболтын алдаа: ' + err.type);
+                showAlert('Холболтын алдаа: ' + err.type);
             }
         });
     }
@@ -115,8 +160,95 @@ class NetworkManager {
             });
 
             this.conn.on('data', data => this.handleData(data));
-            this.conn.on('error', () => alert('Өрөө олдсонгүй эсвэл хаагдсан байна.'));
+            this.conn.on('error', () => {
+                if (!this.migrating) showAlert('Өрөө олдсонгүй эсвэл хаагдсан байна.');
+            });
+
+            // Listen for connections in case I become host later
+            this.peer.on('connection', (conn) => {
+                if (isHost) {
+                    this.setupConnection(conn);
+                } else {
+                    // Reject or queue if not host? 
+                    // For simplicity, close if not host, but ideally we accept.
+                    // But if I am not host, I shouldn't get connections unless I was promoted.
+                    conn.close();
+                }
+            });
+
+            this.conn.on('close', () => {
+                if (!this.kicked && !this.migrating) {
+                    this.handleHostDisconnect();
+                }
+            });
         });
+    }
+
+    handleHostDisconnect() {
+        showNotification("Host гарлаа. Админ шилжиж байна...");
+
+        // 1. Remove old host (first player usually, or whoever myId matches connection peer)
+        // But better to trust the list logic. Usually Host is index 0 or we find them.
+        // Actually, we don't know exactly who Host was by ID easily unless we track it.
+        // But Host ID === conn.peer.
+
+        const hostId = this.conn.peer;
+        gameState.players = gameState.players.filter(p => p.id !== hostId);
+
+        // 2. Find new host (first valid non-local player)
+        const newHostPlayer = gameState.players.find(p => !p.id.startsWith('local-'));
+
+        if (!newHostPlayer) {
+            showAlert('Тоглоом дууслаа. Админ байхгүй.', () => location.reload());
+            return;
+        }
+
+        this.migrating = true; // Prevent alerts
+
+        if (newHostPlayer.id === this.myId) {
+            // I AM THE NEW HOST
+            console.log('Becoming New Host...');
+            isHost = true;
+            this.conn = null;
+            this.connections = []; // Reset connections, wait for clients
+
+            // Show Host UI
+            hostControls.classList.remove('hidden');
+            startGameBtn.classList.remove('hidden');
+            waitingMsg.classList.add('hidden');
+            showNotification("Та шинэ Админ боллоо!");
+
+            // Need to handle manually added players from old host?
+            // They are gone because they were local to old host.
+            gameState.players = gameState.players.filter(p => !p.id.startsWith('local-'));
+            renderLobbyPlayers();
+
+            // Current Turn Correction
+            if (gameState.currentPlayerIndex >= gameState.players.length) {
+                gameState.currentPlayerIndex = 0;
+            }
+            updateGameUI();
+
+        } else {
+            // JOIN NEW HOST
+            console.log('Joining New Host:', newHostPlayer.id);
+            setTimeout(() => {
+                this.conn = this.peer.connect(newHostPlayer.id, { reliable: true });
+
+                this.conn.on('open', () => {
+                    console.log('Connected to NEW host');
+                    this.migrating = false;
+                    this.conn.send({
+                        type: 'JOIN',
+                        payload: { name: myName, clientId: this.myId }
+                    });
+                });
+
+                this.conn.on('data', data => this.handleData(data));
+                this.conn.on('close', () => this.handleHostDisconnect()); // Recursion for next host
+
+            }, 1000 + Math.random() * 2000); // Random delay to prevent hammer
+        }
     }
 
     setupConnection(conn) {
@@ -127,7 +259,38 @@ class NetworkManager {
         conn.on('data', data => this.handleData(data, conn));
         conn.on('close', () => {
             this.connections = this.connections.filter(c => c !== conn);
+            // Handle player disconnect
+            const pIndex = gameState.players.findIndex(p => p.id === conn.peer);
+            if (pIndex !== -1) {
+                const pName = gameState.players[pIndex].name;
+                gameState.players.splice(pIndex, 1);
+                showNotification(`${pName} гарлаа.`);
+                renderLobbyPlayers();
+                if (gameState.status !== 'WAITING') {
+                    // If current player left, move to next
+                    if (gameState.currentPlayerIndex >= gameState.players.length) {
+                        gameState.currentPlayerIndex = 0;
+                    }
+                }
+                this.broadcast({ type: 'STATE_UPDATE', state: gameState });
+            }
         });
+    }
+
+    kickPlayer(playerId) {
+        if (!isHost) return;
+        if (playerId.startsWith('local-')) {
+            // Remove local player
+            gameState.players = gameState.players.filter(p => p.id !== playerId);
+            renderLobbyPlayers();
+            this.broadcast({ type: 'STATE_UPDATE', state: gameState });
+            return;
+        }
+
+        const conn = this.connections.find(c => c.peer === playerId);
+        if (conn) {
+            conn.close(); // This triggers 'close' event above
+        }
     }
 
     broadcast(data) {
@@ -168,6 +331,16 @@ class NetworkManager {
                 gameState.category = data.state.category || 'friends';
                 updateGameUI();
                 renderLobbyPlayers();
+
+                // If I was kicked (not in players list anymore), show alert
+                const amIInList = gameState.players.find(p => p.id === this.myId);
+
+                if (amIInList) {
+                    this.hasJoined = true;
+                } else if (this.hasJoined) {
+                    this.kicked = true; // Mark as kicked
+                    showAlert('Та өрөөнөөс хасагдлаа.', () => location.reload());
+                }
             }
         }
     }
@@ -194,7 +367,7 @@ document.getElementById('join-game-menu-btn').addEventListener('click', () => {
 
 document.getElementById('create-room-btn').addEventListener('click', () => {
     const name = createNameInput.value.trim();
-    if (!name) return alert('Нэрээ оруулна уу!');
+    if (!name) return showAlert('Нэрээ оруулна уу!');
 
     myName = name;
     isHost = true;
@@ -205,11 +378,23 @@ document.getElementById('create-room-btn').addEventListener('click', () => {
 document.getElementById('join-room-btn').addEventListener('click', () => {
     const name = joinNameInput.value.trim();
     const code = roomCodeInput.value.trim().toUpperCase();
-    if (!name || code.length !== 4) return alert('Нэр болон 4 үсэгтэй кодоо зөв оруулна уу!');
+    if (!name || code.length !== 4) return showAlert('Нэр болон 4 үсэгтэй кодоо зөв оруулна уу!');
+
+    const btn = document.getElementById('join-room-btn');
+    btn.disabled = true;
+    btn.textContent = 'Нэвтэрч байна...';
 
     myName = name;
     isHost = false;
     net.initAsClient(code);
+
+    // Safety timeout in case initAsClient fails silently or takes too long
+    setTimeout(() => {
+        if (btn.disabled) {
+            btn.disabled = false;
+            btn.textContent = 'Нэгдэх';
+        }
+    }, 10000);
 });
 
 // Category selection (зөвхөн host)
@@ -224,7 +409,7 @@ document.querySelectorAll('.category-card').forEach(card => {
 
 startGameBtn.addEventListener('click', () => {
     if (!isHost || gameState.players.length < 2) {
-        return alert('Дор хаяж 2 тоглогч байх ёстой!');
+        return showAlert('Дор хаяж 2 тоглогч байх ёстой!');
     }
     gameState.status = 'TRUTH';
     nextTurnReal(); // Эхний тоглогч руу шууд
@@ -399,6 +584,22 @@ function getCategoryData() {
 // data.js-ээс ачаалах
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof GAME_DATA !== 'undefined') categories = GAME_DATA;
+
+    // Initialize Modal Elements
+    modalOverlay = document.getElementById('custom-modal');
+    modalMessage = document.getElementById('modal-message');
+    modalOkBtn = document.getElementById('modal-ok-btn');
+
+    if (modalOkBtn) {
+        modalOkBtn.onclick = () => {
+            modalOverlay.classList.add('hidden');
+            if (modalCallback) {
+                modalCallback();
+                modalCallback = null;
+            }
+        };
+    }
+
     renderLobbyPlayers();
 });
 
@@ -417,4 +618,10 @@ document.getElementById('add-player-btn').onclick = () => {
     renderLobbyPlayers();
     net.broadcast({ type: 'STATE_UPDATE', state: gameState });
     document.getElementById('add-player-input').value = '';
+};
+
+document.getElementById('leave-lobby-btn').onclick = () => {
+    if (confirm('Өрөөнөөс гарахдаа итгэлтэй байна уу?')) {
+        location.reload();
+    }
 };

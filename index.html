@@ -14,6 +14,7 @@
 <body>
 
     <div class="container">
+        <div id="notification-area"></div>
 
         <!-- Start Screen -->
         <div id="start-screen" class="glass-panel">
@@ -64,16 +65,16 @@
                 <h3>Төрөл сонгох</h3>
                 <div class="category-grid">
                     <div class="category-card active" data-category="friends">
-                        <div class="icon">Group</div><span>Найзууд</span>
+                        <div class="icon">👥</div><span>Найзууд</span>
                     </div>
                     <div class="category-card" data-category="couples">
-                        <div class="icon">Heart</div><span>Хосууд</span>
+                        <div class="icon">💑</div><span>Хосууд</span>
                     </div>
                     <div class="category-card" data-category="party">
-                        <div class="icon">Fire</div><span>Шоу/Бээр</span>
+                        <div class="icon">🔥</div><span>Шоу/Бээр</span>
                     </div>
                     <div class="category-card" data-category="mix">
-                        <div class="icon">Dice</div><span>Холимог</span>
+                        <div class="icon">🎲</div><span>Холимог</span>
                     </div>
                 </div>
             </div>
@@ -86,6 +87,7 @@
             </div>
 
             <button id="start-game-btn" class="btn btn-primary hidden">Тоглоом эхлэх</button>
+            <button id="leave-lobby-btn" class="btn btn-secondary" style="margin-top: 10px;">Буцах</button>
         </div>
 
         <!-- Game Screen -->
