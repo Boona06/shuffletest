@@ -299,7 +299,11 @@ class NetworkManager {
 
         const conn = this.connections.find(c => c.peer === playerId);
         if (conn) {
-            conn.close(); // This triggers 'close' event above
+            conn.send({ type: 'KICKED' });
+            // Give time for message to send before closing
+            setTimeout(() => {
+                conn.close();
+            }, 500);
         }
     }
 
@@ -335,6 +339,12 @@ class NetworkManager {
             }
         } else {
             // ====== CLIENT LOGIC ======
+            if (data.type === 'KICKED') {
+                this.kicked = true;
+                showAlert('Та өрөөнөөс хасагдлаа.', () => location.reload());
+                return;
+            }
+
             if (data.type === 'STATE_UPDATE') {
                 Object.assign(gameState, data.state);
                 gameState.players = data.state.players; // deep replace
