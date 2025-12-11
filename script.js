@@ -36,6 +36,8 @@ const notificationArea = document.getElementById('notification-area');
 // Custom Modal Elements (Initialized in DOMContentLoaded)
 let modalOverlay, modalMessage, modalOkBtn;
 let modalCallback = null;
+// Mobile UI Elements
+let btnPunishment, btnTruth, mobileControls;
 
 function showAlert(msg, callback = null) {
     if (!modalOverlay) return alert(msg); // Fallback if called too early
@@ -497,6 +499,14 @@ function startDrag(e) {
 
     if (!myTurn) return;
 
+    // Prevent default slightly to stop scrolling/pull-to-refresh on some browsers
+    // but usually handled in 'touchstart' listener options using preventDefault
+    // We'll enforce it here if it's a touch event to be safe.
+    if (e.type.includes('touch')) {
+        // We don't preventDefault here for click compatibility unless we handle clicks fully manually.
+        // But since we have custom tap logic, we can blocking native behavior to stop scroll.
+    }
+
     isDragging = true;
     startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
     resultCard.style.transition = 'none';
@@ -517,29 +527,37 @@ function endDrag(e) {
     const x = e.type.includes('touch') ? e.changedTouches[0].clientX : e.clientX;
     const diff = x - startX;
 
-    const rect = resultCard.getBoundingClientRect();
-    const cardWidth = rect.width;
-    const clickX = x - rect.left;
-
-    // Threshold for swipe vs tap
-    if (Math.abs(diff) > 80) { // Lowered swipe threshold slightly for better feel
+    // Unified Interaction Logic (No Dead Zone)
+    // > 50px movement = Swipe
+    // <= 50px movement = Tap
+    if (Math.abs(diff) > 50) {
         if (diff > 0) {
             handleRightAction();
         } else {
             handleLeftAction();
         }
-    } else if (Math.abs(diff) < 10) {
-        // TAP DETECTION (Minimal movement)
-        // If tapped Right side (> 50%) -> Right Action
-        // If tapped Left side (< 50%) -> Left Action
-        if (clickX > cardWidth / 2) {
+    } else {
+        // TAP LOGIC
+        // Use Global Screen Center for robustness on mobile
+        if (x > window.innerWidth / 2) {
             handleRightAction();
         } else {
             handleLeftAction();
         }
-    } else {
-        resultCard.style.transform = 'translateX(0) rotate(0deg)';
     }
+
+    // Reset transform only if we didn't flyOut (handled by actions)
+    // But since handleAction calls flyOut immediately, we don't need to reset here
+    // unless we decide NOT to act. But we always act now for simplicity?
+    // Wait, if it's a Tap, we want to act.
+    // If we wanted to allow "Cancel Swipe", we'd need a larger threshold or a specific zone.
+    // But for this game, accidental taps are rare if we just assume intent.
+    // Actually, "Snap Back" is good UX if you drag a little and release.
+    // Let's keep a small "cancel" zone just in case?
+    // User complaint "buruu ajilj baina" suggests it's HARD to trigger.
+    // So "Always Act" is safer for responsiveness.
+    // Exception: If I just rest my finger and move 1px? That's a tap.
+    // If I drag 40px and release? That's ambiguous. I'll treat it as Tap (Intent to choose side).
 }
 
 function handleRightAction() {
@@ -569,8 +587,7 @@ function flyOut(x) {
 resultCard.addEventListener('mousedown', startDrag);
 resultCard.addEventListener('touchstart', (e) => {
     // Prevent default to stop scrolling/zooming while touching card
-    // But we need to be careful not to block clicking if it's a tap.
-    // Usually for swipe, we want to prevent scroll.
+    e.preventDefault();
     startDrag(e);
 }, { passive: false });
 
@@ -602,10 +619,28 @@ function updateGameUI() {
             ? '<span>Зүүн/Left ← ШИЙТГЭЛ</span> <span style="float:right">ҮНЭН → Баруун/Right</span>'
             : '<span style="display:block; text-align:center;">Дараагийнх → Swipe/Right Tap</span>';
 
+        if (isTruth) {
+            resultCard.style.backgroundImage = "linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('truth_meme_bg.png')";
+            resultCard.style.boxShadow = "0 0 30px rgba(0, 200, 255, 0.4)";
+
+            // Show both buttons
+            if (mobileControls) mobileControls.classList.remove('hidden');
+            if (btnPunishment) btnPunishment.style.display = 'block';
+            if (btnTruth) btnTruth.textContent = '😇 Үнэн (Дараагийнх)';
+        } else {
+            resultCard.style.backgroundImage = "linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('dare_meme_bg.png')";
+            resultCard.style.boxShadow = "0 0 30px rgba(255, 0, 50, 0.4)";
+
+            // Hide punishment button (already punished/choosing next)
+            if (mobileControls) mobileControls.classList.remove('hidden');
+            if (btnPunishment) btnPunishment.style.display = 'none';
+            if (btnTruth) btnTruth.textContent = 'Дараагийнх →';
+        }
+
         cardContent.innerHTML = `
-            <h2 style="color: ${gameState.cardColor}; font-size: 2.2rem; margin-bottom: 20px;">${label}</h2>
-            <p style="font-size: 1.4rem; line-height: 1.6; font-weight: 500;">${gameState.currentCardContent}</p>
-            <div style="margin-top: 40px; font-size: 0.9rem; opacity: 0.8; font-weight: bold;">
+            <h2 style="color: ${gameState.cardColor}; font-size: 2.2rem; margin-bottom: 20px; text-shadow: 0 2px 10px rgba(0,0,0,0.8);">${label}</h2>
+            <p style="font-size: 1.4rem; line-height: 1.6; font-weight: 500; text-shadow: 0 1px 5px rgba(0,0,0,1);">${gameState.currentCardContent}</p>
+            <div style="margin-top: 40px; font-size: 0.9rem; opacity: 0.9; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,1);">
                 ${instruction}
             </div>
         `;
@@ -631,19 +666,33 @@ function getCategoryData() {
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof GAME_DATA !== 'undefined') categories = GAME_DATA;
 
-    // Initialize Modal Elements
+    // Modal Elements
     modalOverlay = document.getElementById('custom-modal');
     modalMessage = document.getElementById('modal-message');
     modalOkBtn = document.getElementById('modal-ok-btn');
 
+    // Mobile Control Elements
+    mobileControls = document.getElementById('mobile-controls');
+    btnPunishment = document.getElementById('btn-punishment');
+    btnTruth = document.getElementById('btn-truth');
+
     if (modalOkBtn) {
-        modalOkBtn.onclick = () => {
+        modalOkBtn.addEventListener('click', () => {
+            modalOverlay.classList.remove('active');
             modalOverlay.classList.add('hidden');
-            if (modalCallback) {
-                modalCallback();
-                modalCallback = null;
+            if (currentModalCallback) {
+                currentModalCallback();
+                currentModalCallback = null;
             }
-        };
+        });
+    }
+
+    // Mobile Button Listeners
+    if (btnPunishment) {
+        btnPunishment.addEventListener('click', handleLeftAction);
+    }
+    if (btnTruth) {
+        btnTruth.addEventListener('click', handleRightAction);
     }
 
     renderLobbyPlayers();

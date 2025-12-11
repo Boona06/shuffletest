@@ -228,9 +228,15 @@ input::placeholder {
     /* Taller for mobile */
     display: flex;
     flex-direction: column;
+    /* Background Image Support */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    /* Blend with dark overlay for readability */
+    background-blend-mode: overlay;
+    transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
     justify-content: center;
     align-items: center;
-    transition: transform 0.1s linear, opacity 0.3s ease;
     user-select: none;
     touch-action: none;
     /* Critical for swipe */
@@ -242,6 +248,43 @@ input::placeholder {
     display: none !important;
 }
 
+/* Mobile Controls */
+#mobile-controls {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+#mobile-controls button {
+    flex: 1;
+    padding: 15px;
+    font-size: 1rem;
+    border-radius: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s, filter 0.2s;
+}
+
+#mobile-controls button:active {
+    transform: scale(0.95);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ff4b1f, #ff9068);
+    border: none;
+    color: white;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #00c6ff, #0072ff);
+    border: none;
+    color: white;
+}
+
+/* Base Styles */
 /* Mobile Optimizations */
 @media (max-height: 700px) {
     .glass-panel {
