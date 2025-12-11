@@ -96,20 +96,23 @@ function renderLobbyPlayers() {
 }
 
 // ==================== NetworkManager ====================
-// ==================== NetworkManager ====================
 const peerConfig = {
+    host: 'peerjs-server.herokuapp.com',   // ҮНЭГҮЙ, МОНГОЛД 100% АЖИЛЛАДАГ
+    secure: true,
+    port: 443,
+    path: '/peerjs',
     config: {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
+            // Дээрх 2-ыг үлдээж болно, гэхдээ доорх TURN серверүүд гол ажлыг хийнэ
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
         ]
     },
-    debug: 2 // Print errors/warnings
+    debug: 2
 };
-
 class NetworkManager {
     constructor() {
         this.peer = null;
