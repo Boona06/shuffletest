@@ -110,9 +110,19 @@ class NetworkManager {
         this.peer = new Peer(hostId);
 
         this.peer.on('open', (id) => {
+            this.hasJoined = true;
             this.myId = id;
-            console.log('Host opened:', id);
-            displayRoomCode.textContent = roomCode;
+            // Fix: id format is TOD_MN_XXXX (underscores), so split by '_' and take index 2
+            const roomCode = id.split('_')[2] || id.split('-')[1]; // Fallback just in case
+            displayRoomCode.innerHTML = `${roomCode} <span class="copy-icon">📋</span>`;
+
+            // Allow copying code
+            displayRoomCode.onclick = () => {
+                navigator.clipboard.writeText(roomCode).then(() => {
+                    showNotification("Код хуулагдлаа! (Copied)");
+                }).catch(err => console.error('Failed to copy: ', err));
+            };
+
             showScreen(lobbyScreen);
             hostControls.classList.remove('hidden');
             startGameBtn.classList.remove('hidden');
@@ -497,25 +507,47 @@ function endDrag(e) {
     const x = e.type.includes('touch') ? e.changedTouches[0].clientX : e.clientX;
     const diff = x - startX;
 
-    if (Math.abs(diff) > 120) {
+    const rect = resultCard.getBoundingClientRect();
+    const cardWidth = rect.width;
+    const clickX = x - rect.left;
+
+    // Threshold for swipe vs tap
+    if (Math.abs(diff) > 80) { // Lowered swipe threshold slightly for better feel
         if (diff > 0) {
-            // Баруун → ҮНЭН → Дараагийнх
-            flyOut(1000);
-            setTimeout(sendNextTurn, 400);
+            handleRightAction();
         } else {
-            // Зүүн → Шийтгэл
-            flyOut(-1000);
-            setTimeout(() => {
-                if (gameState.status === 'TRUTH') {
-                    sendPunishment();
-                } else {
-                    sendNextTurn();
-                }
-            }, 400);
+            handleLeftAction();
+        }
+    } else if (Math.abs(diff) < 10) {
+        // TAP DETECTION (Minimal movement)
+        // If tapped Right side (> 50%) -> Right Action
+        // If tapped Left side (< 50%) -> Left Action
+        if (clickX > cardWidth / 2) {
+            handleRightAction();
+        } else {
+            handleLeftAction();
         }
     } else {
         resultCard.style.transform = 'translateX(0) rotate(0deg)';
     }
+}
+
+function handleRightAction() {
+    // Right = Positive (Accept / Next)
+    flyOut(1000);
+    setTimeout(sendNextTurn, 400); // Usually just Next Turn
+}
+
+function handleLeftAction() {
+    // Left = Negative (Punishment)
+    flyOut(-1000);
+    setTimeout(() => {
+        if (gameState.status === 'TRUTH') {
+            sendPunishment(); // Go to Punishment
+        } else {
+            sendNextTurn(); // If already punishment, just next
+        }
+    }, 400);
 }
 
 function flyOut(x) {
@@ -554,13 +586,17 @@ function updateGameUI() {
     if (player) currentPlayerNameEl.textContent = player.name;
 
     if (gameState.currentCardContent) {
+        const isTruth = gameState.status === 'TRUTH';
+        const label = isTruth ? '😇 ҮНЭН (TRUTH)' : '😈 ШИЙТГЭЛ (DARE)';
+        const instruction = isTruth
+            ? '<span>Зүүн/Left ← ШИЙТГЭЛ</span> <span style="float:right">ҮНЭН → Баруун/Right</span>'
+            : '<span style="display:block; text-align:center;">Дараагийнх → Swipe/Right Tap</span>';
+
         cardContent.innerHTML = `
-            <h2 style="color: ${gameState.cardColor}">${gameState.status === 'TRUTH' ? 'АСУУЛТ' : 'ШИЙТГЭЛ'}</h2>
-            <p style="font-size: 1.3rem; line-height: 1.6;">${gameState.currentCardContent}</p>
-            <div style="margin-top: 30px; font-size: 0.9rem; opacity: 0.7;">
-                ${gameState.status === 'TRUTH'
-                ? '<span>Зүүн ← ШИЙТГЭЛ</span> <span style="float:right">ҮНЭН → Баруун</span>'
-                : '<span style="display:block; text-align:center;">Дараагийнх → Swipe</span>'}
+            <h2 style="color: ${gameState.cardColor}; font-size: 2.2rem; margin-bottom: 20px;">${label}</h2>
+            <p style="font-size: 1.4rem; line-height: 1.6; font-weight: 500;">${gameState.currentCardContent}</p>
+            <div style="margin-top: 40px; font-size: 0.9rem; opacity: 0.8; font-weight: bold;">
+                ${instruction}
             </div>
         `;
         resultCard.style.borderColor = gameState.cardColor;
